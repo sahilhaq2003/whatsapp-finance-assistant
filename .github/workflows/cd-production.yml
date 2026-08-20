@@ -68,7 +68,9 @@ jobs:
         run: |
           ssh -p "$SSH_PORT" -i ~/.ssh/hostarmada "$SSH_USER@$SSH_HOST" \
             "APP_ROOT='$APP_ROOT' bash -s" <<'REMOTE'
-          set -euo pipefail
+          # HostArmada's generated Node activation script reads optional
+          # variables that may be unset, so nounset (-u) cannot be enabled.
+          set -eo pipefail
 
           cd "$APP_ROOT"
           git fetch origin main
