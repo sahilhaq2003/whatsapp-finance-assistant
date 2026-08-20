@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.env*
+!.env.example
+coverage
+test
+**/*.spec.ts
+**/*.test.ts
+*.md
+.dockerignore
+Dockerfile
+docker-compose*
+.eslintrc*
+.prettierrc*
+.vscode
+.idea

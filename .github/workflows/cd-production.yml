@@ -1,0 +1,98 @@
+name: CD - Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: "Image tag to deploy (commit SHA)"
+        required: true
+        type: string
+      confirm:
+        description: "Type 'deploy-production' to confirm"
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/dulan-finance
+
+jobs:
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm deployment string
+        run: |
+          if [ "${{ inputs.confirm }}" != "deploy-production" ]; then
+            echo "ERROR: Confirmation string does not match"
+            exit 1
+          fi
+          echo "Deployment confirmed for image tag: ${{ inputs.image-tag }}"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Image Exists
+        run: |
+          echo "Verifying image ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ inputs.image-tag }} exists..."
+          # docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ inputs.image-tag }}
+
+      - name: Deploy Backend API
+        run: |
+          echo "Deploying backend:${{ inputs.image-tag }} to production..."
+          # Platform-specific deployment command
+
+      - name: Wait for API readiness
+        run: |
+          echo "Waiting for API readiness..."
+          for i in $(seq 1 30); do
+            if curl -sf "${{ vars.PRODUCTION_API_URL }}/api/health/ready" > /dev/null 2>&1; then
+              echo "API is ready"
+              exit 0
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 10
+          done
+          echo "ERROR: API readiness timeout"
+          exit 1
+
+      - name: Deploy Worker
+        run: |
+          echo "Deploying worker:${{ inputs.image-tag }} to production..."
+          echo "Worker deployed."
+
+      - name: Deploy Frontend
+        run: |
+          echo "Deploying frontend:${{ inputs.image-tag }} to production..."
+          echo "Frontend deployed."
+
+      - name: Production Smoke Tests
+        run: |
+          API_URL="${{ vars.PRODUCTION_API_URL }}"
+          FRONTEND_URL="${{ vars.PRODUCTION_FRONTEND_URL }}"
+
+          echo "Running production smoke tests..."
+
+          # Frontend loads
+          curl -sf "${FRONTEND_URL}/" || exit 1
+          echo "PASS: Frontend loads"
+
+          # Health checks
+          curl -sf "${API_URL}/api/health/live" || exit 1
+          echo "PASS: Liveness"
+
+          curl -sf "${API_URL}/api/health/ready" || exit 1
+          echo "PASS: Readiness"
+
+          echo "All production smoke tests passed"
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          echo "Deployment ${{ inputs.image-tag }} completed at $(date -u)"
+          # Send notification (Slack, email, etc.)

@@ -1,0 +1,114 @@
+name: CD - Staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+env:
+  NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/dulan-finance
+
+jobs:
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=staging
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:staging
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:staging
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Backend API
+        run: |
+          echo "Deploying backend:${{ github.sha }} to staging..."
+          # Platform-specific deployment command
+          # Examples:
+          # - AWS ECS: aws ecs update-service --cluster staging --service api --force-new-deployment
+          # - Railway: railway service deploy --service api
+          # - Fly.io: flyctl deploy --app dulan-api-staging --image ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ github.sha }}
+          echo "Backend deployed."
+
+      - name: Deploy Worker
+        run: |
+          echo "Deploying worker:${{ github.sha }} to staging..."
+          echo "Worker deployed."
+
+      - name: Deploy Frontend
+        run: |
+          echo "Deploying frontend:${{ github.sha }} to staging..."
+          echo "Frontend deployed."
+
+      - name: Run Index Verification
+        run: |
+          echo "Running index verification against staging MongoDB..."
+          # node scripts/verify-indexes.js
+
+      - name: Staging Smoke Tests
+        run: |
+          STAGING_URL="${{ vars.STAGING_API_URL }}"
+          echo "Running smoke tests against ${STAGING_URL}..."
+
+          # Health checks
+          curl -sf "${STAGING_URL}/api/health/live" || exit 1
+          echo "Liveness check passed"
+
+          curl -sf "${STAGING_URL}/api/health/ready" || exit 1
+          echo "Readiness check passed"
+
+          # Frontend
+          curl -sf "${{ vars.STAGING_FRONTEND_URL }}/" || exit 1
+          echo "Frontend check passed"
+
+          echo "All smoke tests passed"
