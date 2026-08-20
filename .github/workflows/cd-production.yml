@@ -1,98 +1,123 @@
-name: CD - Production
+name: Deploy - HostArmada Production
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      image-tag:
-        description: "Image tag to deploy (commit SHA)"
-        required: true
-        type: string
-      confirm:
-        description: "Type 'deploy-production' to confirm"
-        required: true
-        type: string
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/dulan-finance
+concurrency:
+  group: hostarmada-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  validate:
-    name: Validate Deployment
+  deploy:
+    name: Deploy frontend and backend
     runs-on: ubuntu-latest
-    steps:
-      - name: Confirm deployment string
-        run: |
-          if [ "${{ inputs.confirm }}" != "deploy-production" ]; then
-            echo "ERROR: Confirmation string does not match"
-            exit 1
-          fi
-          echo "Deployment confirmed for image tag: ${{ inputs.image-tag }}"
-
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: validate
     environment: production
+    env:
+      SSH_HOST: torult1.hostarmada.net
+      SSH_PORT: "19199"
+      SSH_USER: dulanpro
+      APP_ROOT: /home/dulanpro/repositories/whatsapp-finance-assistant
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out application
+        uses: actions/checkout@v4
 
-      - name: Verify Image Exists
-        run: |
-          echo "Verifying image ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ inputs.image-tag }} exists..."
-          # docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ inputs.image-tag }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Deploy Backend API
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://api.salligo.com
         run: |
-          echo "Deploying backend:${{ inputs.image-tag }} to production..."
-          # Platform-specific deployment command
+          npm ci
+          npm run build
+          mkdir -p .next/standalone/.next/static .next/standalone/public
+          cp -a .next/static/. .next/standalone/.next/static/
+          cp -a public/. .next/standalone/public/
 
-      - name: Wait for API readiness
+      - name: Package frontend
+        run: tar -czf frontend-standalone.tar.gz -C frontend/.next standalone
+
+      - name: Configure SSH
+        env:
+          HOSTARMADA_SSH_KEY: ${{ secrets.HOSTARMADA_SSH_KEY }}
         run: |
-          echo "Waiting for API readiness..."
-          for i in $(seq 1 30); do
-            if curl -sf "${{ vars.PRODUCTION_API_URL }}/api/health/ready" > /dev/null 2>&1; then
-              echo "API is ready"
+          test -n "$HOSTARMADA_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$HOSTARMADA_SSH_KEY" > ~/.ssh/hostarmada
+          chmod 600 ~/.ssh/hostarmada
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload frontend build
+        run: |
+          scp -P "$SSH_PORT" -i ~/.ssh/hostarmada \
+            frontend-standalone.tar.gz \
+            "$SSH_USER@$SSH_HOST:/home/dulanpro/frontend-standalone.tar.gz"
+
+      - name: Deploy on HostArmada
+        run: |
+          ssh -p "$SSH_PORT" -i ~/.ssh/hostarmada "$SSH_USER@$SSH_HOST" \
+            "APP_ROOT='$APP_ROOT' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd "$APP_ROOT"
+          git fetch origin main
+          git merge --ff-only origin/main
+
+          BACKEND="$APP_ROOT/backend"
+          source "/home/dulanpro/nodevenv/repositories/whatsapp-finance-assistant/backend/22/bin/activate"
+          cd "$BACKEND"
+          npm ci --include=dev
+          npm run build
+          mkdir -p tmp
+          touch tmp/restart.txt
+          deactivate || true
+
+          FRONTEND="$APP_ROOT/frontend"
+          STAGING="$FRONTEND/.next.deploy-new"
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          tar -xzf /home/dulanpro/frontend-standalone.tar.gz -C "$STAGING"
+
+          # Retain old hashed assets so already-cached pages keep working.
+          if [[ -d "$FRONTEND/.next/standalone/.next/static" ]]; then
+            mkdir -p "$STAGING/standalone/.next/static"
+            cp -an "$FRONTEND/.next/standalone/.next/static/." \
+              "$STAGING/standalone/.next/static/"
+          fi
+
+          rm -rf "$FRONTEND/.next/standalone.previous"
+          if [[ -d "$FRONTEND/.next/standalone" ]]; then
+            mv "$FRONTEND/.next/standalone" "$FRONTEND/.next/standalone.previous"
+          fi
+          mv "$STAGING/standalone" "$FRONTEND/.next/standalone"
+          rmdir "$STAGING"
+          rm -f /home/dulanpro/frontend-standalone.tar.gz
+          mkdir -p "$FRONTEND/tmp"
+          touch "$FRONTEND/tmp/restart.txt"
+          REMOTE
+
+      - name: Verify production
+        run: |
+          for attempt in {1..12}; do
+            frontend_status=$(curl -sS -o /dev/null -w '%{http_code}' https://salligo.com/login || true)
+            backend_status=$(curl -sS -o /dev/null -w '%{http_code}' https://api.salligo.com/api/health/live || true)
+            if [[ "$frontend_status" == "200" && "$backend_status" == "200" ]]; then
+              echo "Deployment verified: frontend=$frontend_status backend=$backend_status"
               exit 0
             fi
-            echo "Waiting... ($i/30)"
-            sleep 10
+            echo "Waiting for restart: frontend=$frontend_status backend=$backend_status"
+            sleep 5
           done
-          echo "ERROR: API readiness timeout"
+          echo "Production verification failed"
           exit 1
-
-      - name: Deploy Worker
-        run: |
-          echo "Deploying worker:${{ inputs.image-tag }} to production..."
-          echo "Worker deployed."
-
-      - name: Deploy Frontend
-        run: |
-          echo "Deploying frontend:${{ inputs.image-tag }} to production..."
-          echo "Frontend deployed."
-
-      - name: Production Smoke Tests
-        run: |
-          API_URL="${{ vars.PRODUCTION_API_URL }}"
-          FRONTEND_URL="${{ vars.PRODUCTION_FRONTEND_URL }}"
-
-          echo "Running production smoke tests..."
-
-          # Frontend loads
-          curl -sf "${FRONTEND_URL}/" || exit 1
-          echo "PASS: Frontend loads"
-
-          # Health checks
-          curl -sf "${API_URL}/api/health/live" || exit 1
-          echo "PASS: Liveness"
-
-          curl -sf "${API_URL}/api/health/ready" || exit 1
-          echo "PASS: Readiness"
-
-          echo "All production smoke tests passed"
-
-      - name: Notify deployment
-        if: always()
-        run: |
-          echo "Deployment ${{ inputs.image-tag }} completed at $(date -u)"
-          # Send notification (Slack, email, etc.)
