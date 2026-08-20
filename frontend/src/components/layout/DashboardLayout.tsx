@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -50,7 +49,7 @@ export default function DashboardLayout({
       <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-[1440px] overflow-hidden rounded-[1.35rem] bg-[#fbfcfb] shadow-[0_24px_80px_rgba(15,40,32,0.14)] sm:min-h-[calc(100vh-2.5rem)] lg:min-h-[calc(100vh-4rem)]">
         <aside className="hidden w-[250px] shrink-0 bg-[#0d4336] px-5 py-5 text-white lg:flex lg:flex-col">
           <Link href="/dashboard" className="flex items-center justify-center">
-            <Image src="/logo.png" alt="Salligo" width={96} height={96} className="rounded-3xl shadow-xl shadow-emerald-600/20 bg-white p-2" />
+            <span className="text-2xl font-extrabold tracking-tight text-white">Salligo</span>
           </Link>
 
           <div className="mt-7 rounded-xl border border-white/10 bg-white/10 p-2.5">

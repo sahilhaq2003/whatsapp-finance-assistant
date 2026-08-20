@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -33,7 +32,7 @@ export default function LoginPage() {
         <section className="hidden lg:block">
           <div className="max-w-xl">
             <div className="mb-8 flex items-center gap-4">
-              <Image src="/logo.png" alt="Salligo" width={96} height={96} className="rounded-3xl shadow-xl shadow-emerald-600/20" />
+              <span className="text-3xl font-extrabold tracking-tight text-[#101816]">Salligo</span>
             </div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
               Finance workspace
@@ -73,7 +72,7 @@ export default function LoginPage() {
         <div className="w-full rounded-[2rem] border border-white bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-8">
           <div className="mb-8 text-center">
             <span className="mx-auto lg:hidden">
-              <Image src="/logo.png" alt="Salligo" width={120} height={120} className="rounded-3xl shadow-xl shadow-emerald-600/20" />
+              <span className="text-3xl font-extrabold tracking-tight text-[#101816]">Salligo</span>
             </span>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-[#17211c] lg:mt-0">
               Welcome back

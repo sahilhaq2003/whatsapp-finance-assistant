@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -30,7 +29,7 @@ export default function RegisterPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#f4f6f3] px-4 text-[#17211c]">
         <div className="w-full max-w-md rounded-[2rem] border border-white bg-white p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
           <span className="mx-auto flex h-14 w-14 items-center justify-center">
-            <Image src="/logo.png" alt="Salligo" width={56} height={56} className="rounded-2xl" />
+            <span className="text-2xl font-extrabold tracking-tight text-[#101816]">S</span>
           </span>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">
             No business workspace found
@@ -57,9 +56,8 @@ export default function RegisterPage() {
         <section className="hidden lg:block">
           <div className="max-w-xl">
             <div className="mb-8 flex items-center gap-3">
-              <Image src="/logo.png" alt="Salligo" width={48} height={48} className="rounded-2xl shadow-lg shadow-emerald-600/20" />
               <div>
-                <p className="text-lg font-semibold tracking-tight">
+                <p className="text-xl font-extrabold tracking-tight text-[#101816]">
                   Salligo
                 </p>
                 <p className="text-sm font-medium text-slate-500">
@@ -107,7 +105,7 @@ export default function RegisterPage() {
         <div className="w-full rounded-[2rem] border border-white bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-8">
           <div className="mb-8 text-center">
             <span className="mx-auto lg:hidden">
-              <Image src="/logo.png" alt="Salligo" width={56} height={56} className="rounded-2xl shadow-lg shadow-emerald-600/20" />
+              <span className="text-2xl font-extrabold tracking-tight text-[#101816]">Salligo</span>
             </span>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-[#17211c] lg:mt-0">
               Create your account
