@@ -15,7 +15,7 @@ async function bootstrap() {
   });
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT');
+  const port = configService.get<string>('PORT');
   const frontendUrl = configService.get<string>('FRONTEND_URL');
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
   const trustProxy = configService.get<string>('TRUST_PROXY', 'false');

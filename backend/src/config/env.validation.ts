@@ -11,8 +11,10 @@ class EnvironmentVariables {
   @IsEnum(Environment)
   NODE_ENV: Environment;
 
-  @IsNumber()
-  PORT: number;
+  // Passenger may provide a Unix socket path rather than a numeric TCP port.
+  @IsOptional()
+  @IsString()
+  PORT?: string;
 
   @IsString()
   MONGODB_URI: string;
@@ -35,8 +37,9 @@ class EnvironmentVariables {
   @IsString()
   COOKIE_SECURE: string;
 
+  @IsOptional()
   @IsNumber()
-  BCRYPT_SALT_ROUNDS: number;
+  BCRYPT_SALT_ROUNDS?: number;
 
   @IsNumber()
   THROTTLE_TTL: number;
