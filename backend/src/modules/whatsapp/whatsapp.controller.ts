@@ -186,24 +186,55 @@ export class WhatsAppController {
       phoneNumberId: dto.phoneNumberId,
     });
 
-    if (existing) {
+    const businessObjectId = new Types.ObjectId(business.businessId);
+
+    if (existing?.isActive) {
       return {
         success: false,
         message: 'This phone number is already connected to a business',
       };
     }
 
-    const connection = await this.connectionModel.create({
-      businessId: new Types.ObjectId(business.businessId),
-      wabaId: dto.wabaId,
-      phoneNumberId: dto.phoneNumberId,
-      displayPhoneNumber: dto.displayPhoneNumber,
-      businessPhoneE164: dto.businessPhoneE164,
-      status: WhatsAppConnectionStatus.CONNECTED,
-      isActive: true,
-      connectedAt: new Date(),
-      connectedByUserId: user.userId,
-    });
+    if (
+      existing &&
+      existing.businessId.toString() !== businessObjectId.toString()
+    ) {
+      return {
+        success: false,
+        message: 'This phone number belongs to another business',
+      };
+    }
+
+    const connection = existing
+      ? await this.connectionModel.findByIdAndUpdate(
+          existing._id,
+          {
+            businessId: businessObjectId,
+            wabaId: dto.wabaId,
+            displayPhoneNumber: dto.displayPhoneNumber,
+            businessPhoneE164: dto.businessPhoneE164,
+            status: WhatsAppConnectionStatus.CONNECTED,
+            isActive: true,
+            connectedAt: new Date(),
+            connectedByUserId: user.userId,
+          },
+          { new: true, runValidators: true },
+        )
+      : await this.connectionModel.create({
+          businessId: businessObjectId,
+          wabaId: dto.wabaId,
+          phoneNumberId: dto.phoneNumberId,
+          displayPhoneNumber: dto.displayPhoneNumber,
+          businessPhoneE164: dto.businessPhoneE164,
+          status: WhatsAppConnectionStatus.CONNECTED,
+          isActive: true,
+          connectedAt: new Date(),
+          connectedByUserId: user.userId,
+        });
+
+    if (!connection) {
+      throw new BadRequestException('Failed to save WhatsApp connection');
+    }
 
     await this.auditService.log({
       businessId: business.businessId,
