@@ -35,7 +35,7 @@ import {
   WhatsAppConnectionDocument,
 } from './schemas/whatsapp-connection.schema';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { WhatsAppConnectionStatus } from '../../common/enums/whatsapp-connection-status.enum';
 import { BusinessRole } from '../../common/enums/business-role.enum';
 import { MetaWhatsAppProviderService } from './services/whatsapp-provider.service';
@@ -194,7 +194,7 @@ export class WhatsAppController {
     }
 
     const connection = await this.connectionModel.create({
-      businessId: business.businessId,
+      businessId: new Types.ObjectId(business.businessId),
       wabaId: dto.wabaId,
       phoneNumberId: dto.phoneNumberId,
       displayPhoneNumber: dto.displayPhoneNumber,

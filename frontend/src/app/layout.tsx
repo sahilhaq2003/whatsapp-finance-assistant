@@ -18,6 +18,11 @@ export const metadata: Metadata = {
   description: "WhatsApp-First Business Finance Assistant",
 };
 
+// Authentication and business selection are browser state. Rendering routes
+// dynamically prevents a previous deployment's HTML from being cached and
+// hydrated with JavaScript from a different build.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
