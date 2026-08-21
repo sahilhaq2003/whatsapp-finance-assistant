@@ -101,6 +101,12 @@ jobs:
               "$STAGING/standalone/.next/static/"
           fi
 
+          # Stop Passenger before replacing the directory used by its running
+          # process. This prevents a process from continuing in a deleted build.
+          /usr/sbin/cloudlinux-selector stop --json --interpreter nodejs \
+            --user dulanpro \
+            --app-root repositories/whatsapp-finance-assistant/frontend
+
           rm -rf "$FRONTEND/.next/standalone.previous"
           if [[ -d "$FRONTEND/.next/standalone" ]]; then
             mv "$FRONTEND/.next/standalone" "$FRONTEND/.next/standalone.previous"
@@ -110,7 +116,7 @@ jobs:
           rm -f /home/dulanpro/frontend-standalone.tar.gz
           mkdir -p "$FRONTEND/tmp"
           touch "$FRONTEND/tmp/restart.txt"
-          /usr/sbin/cloudlinux-selector restart --json --interpreter nodejs \
+          /usr/sbin/cloudlinux-selector start --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/frontend
           REMOTE
