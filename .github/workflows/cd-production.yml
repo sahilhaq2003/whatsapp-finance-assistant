@@ -86,6 +86,11 @@ jobs:
           /usr/sbin/cloudlinux-selector stop --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/backend
+          for process_dir in /proc/[0-9]*; do
+            if [[ "$(readlink "$process_dir/cwd" 2>/dev/null || true)" == "$BACKEND" ]]; then
+              kill "${process_dir##*/}" 2>/dev/null || true
+            fi
+          done
           /usr/sbin/cloudlinux-selector start --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/backend
@@ -109,6 +114,11 @@ jobs:
           /usr/sbin/cloudlinux-selector stop --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/frontend
+          for process_dir in /proc/[0-9]*; do
+            if [[ "$(readlink "$process_dir/cwd" 2>/dev/null || true)" == "$FRONTEND/.next/standalone" ]]; then
+              kill "${process_dir##*/}" 2>/dev/null || true
+            fi
+          done
 
           rm -rf "$FRONTEND/.next/standalone.previous"
           if [[ -d "$FRONTEND/.next/standalone" ]]; then
