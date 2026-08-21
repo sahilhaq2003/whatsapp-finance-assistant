@@ -251,7 +251,7 @@ export class WhatsAppController {
 
     const connection = await this.connectionModel.findOneAndUpdate(
       {
-        businessId: business.businessId,
+        businessId: new Types.ObjectId(business.businessId),
         isActive: true,
       },
       {

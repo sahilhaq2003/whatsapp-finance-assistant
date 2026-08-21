@@ -148,7 +148,12 @@ export default function WhatsAppSettingsPage() {
       const res = await whatsappService.disconnectConnection();
       if (res.success) {
         setSuccess('WhatsApp disconnected');
+        setError('');
+        setPairingCode(null);
+        setPairingPolling(false);
         loadConnection();
+      } else {
+        setError(res.message || 'Failed to disconnect WhatsApp');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect');
