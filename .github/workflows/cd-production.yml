@@ -77,12 +77,8 @@ jobs:
           git merge --ff-only origin/main
 
           BACKEND="$APP_ROOT/backend"
-          source "/home/dulanpro/nodevenv/repositories/whatsapp-finance-assistant/backend/22/bin/activate"
-          cd "$BACKEND"
-          npm ci --include=dev
-          npm run build
-          mkdir -p tmp
-          touch tmp/restart.txt
+          # npm ci replaces node_modules. Stop the live application first so
+          # requests cannot load a dependency while its files are being replaced.
           /usr/sbin/cloudlinux-selector stop --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/backend
@@ -91,6 +87,13 @@ jobs:
               kill "${process_dir##*/}" 2>/dev/null || true
             fi
           done
+
+          source "/home/dulanpro/nodevenv/repositories/whatsapp-finance-assistant/backend/22/bin/activate"
+          cd "$BACKEND"
+          npm ci --include=dev
+          npm run build
+          mkdir -p tmp
+          touch tmp/restart.txt
           /usr/sbin/cloudlinux-selector start --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/backend
