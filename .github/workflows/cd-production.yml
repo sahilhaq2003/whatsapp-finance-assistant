@@ -37,7 +37,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_URL: https://api.salligo.com
+          NEXT_PUBLIC_API_URL: https://api.salligo.com/api
         run: |
           npm ci
           npm run build
@@ -83,6 +83,9 @@ jobs:
           npm run build
           mkdir -p tmp
           touch tmp/restart.txt
+          /usr/sbin/cloudlinux-selector restart --json --interpreter nodejs \
+            --user dulanpro \
+            --app-root repositories/whatsapp-finance-assistant/backend
           deactivate || true
 
           FRONTEND="$APP_ROOT/frontend"
@@ -107,6 +110,9 @@ jobs:
           rm -f /home/dulanpro/frontend-standalone.tar.gz
           mkdir -p "$FRONTEND/tmp"
           touch "$FRONTEND/tmp/restart.txt"
+          /usr/sbin/cloudlinux-selector restart --json --interpreter nodejs \
+            --user dulanpro \
+            --app-root repositories/whatsapp-finance-assistant/frontend
           REMOTE
 
       - name: Verify production
