@@ -141,12 +141,13 @@ jobs:
         run: |
           for attempt in {1..12}; do
             frontend_status=$(curl -sS -o /dev/null -w '%{http_code}' https://salligo.com/login || true)
+            inbox_status=$(curl -sS -o /dev/null -w '%{http_code}' https://salligo.com/dashboard/inbox || true)
             backend_status=$(curl -sS -o /dev/null -w '%{http_code}' https://api.salligo.com/api/health/live || true)
-            if [[ "$frontend_status" == "200" && "$backend_status" == "200" ]]; then
-              echo "Deployment verified: frontend=$frontend_status backend=$backend_status"
+            if [[ "$frontend_status" == "200" && "$inbox_status" == "200" && "$backend_status" == "200" ]]; then
+              echo "Deployment verified: frontend=$frontend_status inbox=$inbox_status backend=$backend_status"
               exit 0
             fi
-            echo "Waiting for restart: frontend=$frontend_status backend=$backend_status"
+            echo "Waiting for restart: frontend=$frontend_status inbox=$inbox_status backend=$backend_status"
             sleep 5
           done
           echo "Production verification failed"
