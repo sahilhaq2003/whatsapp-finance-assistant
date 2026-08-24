@@ -117,11 +117,20 @@ jobs:
           /usr/sbin/cloudlinux-selector stop --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/frontend
-          for process_dir in /proc/[0-9]*; do
-            if [[ "$(readlink "$process_dir/cwd" 2>/dev/null || true)" == "$FRONTEND/.next/standalone" ]]; then
-              kill "${process_dir##*/}" 2>/dev/null || true
-            fi
-          done
+
+          stop_frontend_processes() {
+            local signal="$1"
+            for process_dir in /proc/[0-9]*; do
+              process_cwd="$(readlink "$process_dir/cwd" 2>/dev/null || true)"
+              if [[ "$process_cwd" == "$FRONTEND/.next/standalone"* ]]; then
+                kill "-$signal" "${process_dir##*/}" 2>/dev/null || true
+              fi
+            done
+          }
+
+          stop_frontend_processes TERM
+          sleep 2
+          stop_frontend_processes KILL
 
           rm -rf "$FRONTEND/.next/standalone.previous"
           if [[ -d "$FRONTEND/.next/standalone" ]]; then
@@ -130,6 +139,12 @@ jobs:
           mv "$STAGING/standalone" "$FRONTEND/.next/standalone"
           rmdir "$STAGING"
           rm -f /home/dulanpro/frontend-standalone.tar.gz
+
+          # Passenger may finish spawning an old worker after the initial stop.
+          # Remove any worker still attached to the renamed/deleted build.
+          stop_frontend_processes TERM
+          sleep 2
+          stop_frontend_processes KILL
 
           # Fail before restart if the uploaded build does not contain the
           # inbox route. This also makes stale-artifact failures explicit.
@@ -140,19 +155,6 @@ jobs:
           /usr/sbin/cloudlinux-selector start --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/frontend
-
-          echo "Node.js application configuration:"
-          /usr/sbin/cloudlinux-selector get --json --interpreter nodejs \
-            --user dulanpro 2>&1 || true
-          echo "Frontend Node.js processes after restart:"
-          for process_dir in /proc/[0-9]*; do
-            process_pid="${process_dir##*/}"
-            process_cwd="$(readlink "$process_dir/cwd" 2>/dev/null || true)"
-            process_args="$(tr '\0' ' ' < "$process_dir/cmdline" 2>/dev/null || true)"
-            if [[ "$process_cwd" == "$FRONTEND"* || "$process_args" == *"$FRONTEND"* ]]; then
-              printf 'pid=%s cwd=%s args=%s\n' "$process_pid" "$process_cwd" "$process_args"
-            fi
-          done
           REMOTE
 
       - name: Verify production
