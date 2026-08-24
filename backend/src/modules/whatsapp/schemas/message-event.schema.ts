@@ -25,24 +25,32 @@ export class MessageEventMetadata {
   @Prop({ type: Number })
   voiceDurationSeconds?: number;
 
-  @Prop({ type: String, enum: ['not_required', 'pending', 'processing', 'completed', 'failed'], default: 'not_required' })
+  @Prop({
+    type: String,
+    enum: ['not_required', 'pending', 'processing', 'completed', 'failed'],
+    default: 'not_required',
+  })
   transcriptionStatus?: string;
 
   @Prop({ type: String })
   transcriptionErrorCode?: string;
 }
 
-export const MessageEventMetadataSchema = SchemaFactory.createForClass(MessageEventMetadata);
+export const MessageEventMetadataSchema =
+  SchemaFactory.createForClass(MessageEventMetadata);
 
 @Schema({
   timestamps: true,
   collection: 'message_events',
 })
 export class MessageEvent {
-  @Prop({ type: Types.ObjectId, ref: 'Business', required: true })
+  @Prop({ type: 'ObjectId', ref: 'Conversation' })
+  conversationId?: Types.ObjectId;
+
+  @Prop({ type: 'ObjectId', ref: 'Business', required: true })
   businessId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'WhatsAppConnection', required: true })
+  @Prop({ type: 'ObjectId', ref: 'WhatsAppConnection', required: true })
   whatsappConnectionId: Types.ObjectId;
 
   @Prop({ type: String, enum: WhatsAppProvider, required: true })
@@ -72,7 +80,11 @@ export class MessageEvent {
   @Prop({ type: Date })
   providerTimestamp?: Date;
 
-  @Prop({ type: String, enum: MessageProcessingStatus, default: MessageProcessingStatus.RECEIVED })
+  @Prop({
+    type: String,
+    enum: MessageProcessingStatus,
+    default: MessageProcessingStatus.RECEIVED,
+  })
   processingStatus: MessageProcessingStatus;
 
   @Prop({ type: String })
@@ -101,14 +113,32 @@ export class MessageEvent {
 
   @Prop({ type: MessageEventMetadataSchema })
   metadata?: MessageEventMetadata;
+
+  @Prop({ type: String, enum: ['customer', 'human_agent', 'ai'] })
+  senderType?: string;
+
+  @Prop({ type: Boolean, default: false })
+  originatedFromAi?: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  humanEdited?: boolean;
 }
 
 export const MessageEventSchema = SchemaFactory.createForClass(MessageEvent);
 
-MessageEventSchema.index({ provider: 1, providerMessageId: 1 }, { unique: true });
+MessageEventSchema.index(
+  { provider: 1, providerMessageId: 1 },
+  { unique: true },
+);
 MessageEventSchema.index({ businessId: 1 });
 MessageEventSchema.index({ whatsappConnectionId: 1 });
 MessageEventSchema.index({ businessId: 1, providerMessageId: 1 });
 MessageEventSchema.index({ businessId: 1, direction: 1, createdAt: -1 });
 MessageEventSchema.index({ processingStatus: 1 });
 MessageEventSchema.index({ senderPhone: 1 });
+MessageEventSchema.index({
+  businessId: 1,
+  conversationId: 1,
+  providerTimestamp: 1,
+  createdAt: 1,
+});

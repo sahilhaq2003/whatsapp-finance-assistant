@@ -21,7 +21,8 @@
     "test:watch": "jest --config jest.config.ts --watch",
     "test:cov": "jest --config jest.config.ts --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --config jest.config.ts --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:inbox-e2e": "npm run build && node scripts/e2e-inbox-workflow.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -56,6 +57,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",

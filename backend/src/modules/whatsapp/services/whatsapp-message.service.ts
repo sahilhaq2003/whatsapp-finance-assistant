@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   MessageEvent,
   MessageEventDocument,
@@ -9,11 +9,18 @@ import {
   WhatsAppConnection,
   WhatsAppConnectionDocument,
 } from '../schemas/whatsapp-connection.schema';
-import { Business, BusinessDocument } from '../../businesses/schemas/business.schema';
+import {
+  Business,
+  BusinessDocument,
+} from '../../businesses/schemas/business.schema';
 import { MessageDirection } from '../../../common/enums/message-direction.enum';
 import { MessageProcessingStatus } from '../../../common/enums/message-processing-status.enum';
 import { MessageType } from '../../../common/enums/message-type.enum';
-import { WHATSAPP_CONSTANTS, WHATSAPP_REPLIES, WHATSAPP_COMMANDS } from '../whatsapp.constants';
+import {
+  WHATSAPP_CONSTANTS,
+  WHATSAPP_REPLIES,
+  WHATSAPP_COMMANDS,
+} from '../whatsapp.constants';
 import { MetaWhatsAppProviderService } from './whatsapp-provider.service';
 import { WhatsAppBusinessResolverService } from './whatsapp-business-resolver.service';
 import { WhatsAppVoiceProcessorService } from './whatsapp-voice-processor.service';
@@ -61,7 +68,12 @@ export class WhatsAppMessageService {
 
       if (messageEvent.messageType !== MessageType.TEXT) {
         if (messageEvent.messageType === MessageType.AUDIO) {
-          await this.handleVoiceMessage(messageEvent, connection, business, sender.userId.toString());
+          await this.handleVoiceMessage(
+            messageEvent,
+            connection,
+            business,
+            sender.userId.toString(),
+          );
           return;
         }
 
@@ -75,7 +87,12 @@ export class WhatsAppMessageService {
         return;
       }
 
-      await this.handleAuthorizedTextMessage(messageEvent, connection, business, sender.userId.toString());
+      await this.handleAuthorizedTextMessage(
+        messageEvent,
+        connection,
+        business,
+        sender.userId.toString(),
+      );
     } catch (error) {
       this.logger.error(`Error handling inbound message: ${error}`);
       await this.messageEventModel.findByIdAndUpdate(messageEvent._id, {
@@ -185,9 +202,13 @@ export class WhatsAppMessageService {
     const userId = senderUserId(activeProposal);
     const proposalId = activeProposal._id.toString();
 
-    const isConfirm = AI_CONSTANTS.CONFIRMATION_KEYWORDS.includes(textLower as any);
+    const isConfirm = AI_CONSTANTS.CONFIRMATION_KEYWORDS.includes(
+      textLower as any,
+    );
     const isCancel = AI_CONSTANTS.REJECTION_KEYWORDS.includes(textLower as any);
-    const isEdit = AI_CONSTANTS.EDIT_KEYWORDS.some((kw) => textLower.includes(kw));
+    const isEdit = AI_CONSTANTS.EDIT_KEYWORDS.some((kw) =>
+      textLower.includes(kw),
+    );
 
     if (isConfirm) {
       try {
@@ -242,12 +263,13 @@ export class WhatsAppMessageService {
     const correctionResult = this.parseCorrection(text);
     if (correctionResult) {
       try {
-        const { proposal, confirmationText } = await this.proposalService.updateProposal(
-          businessId,
-          userId,
-          proposalId,
-          correctionResult,
-        );
+        const { proposal, confirmationText } =
+          await this.proposalService.updateProposal(
+            businessId,
+            userId,
+            proposalId,
+            correctionResult,
+          );
 
         await this.sendReply(
           connection,
@@ -281,38 +303,58 @@ export class WhatsAppMessageService {
     );
   }
 
-  private parseCorrection(text: string): Partial<{ amount: number; category: string; date: string; description: string; customer: string; paymentMethod: string }> | null {
+  private parseCorrection(text: string): Partial<{
+    amount: number;
+    category: string;
+    date: string;
+    description: string;
+    customer: string;
+    paymentMethod: string;
+  }> | null {
     const textLower = text.toLowerCase();
     const result: Record<string, unknown> = {};
 
-    const amountMatch = text.match(/(?:amount|cost|price|total|value)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i)
-      || text.match(/(?:is|was)\s+(\d+(?:[.,]\d+)?)/i)
-      || text.match(/(\d+(?:[.,]\d+)?)\s*(?:lkr|rs|inr|usd|\$)/i);
+    const amountMatch =
+      text.match(
+        /(?:amount|cost|price|total|value)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i,
+      ) ||
+      text.match(/(?:is|was)\s+(\d+(?:[.,]\d+)?)/i) ||
+      text.match(/(\d+(?:[.,]\d+)?)\s*(?:lkr|rs|inr|usd|\$)/i);
     if (amountMatch) {
       result.amount = parseFloat(amountMatch[1].replace(/,/g, ''));
     }
 
-    const categoryMatch = text.match(/(?:category|type|group)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(.+)/i);
+    const categoryMatch = text.match(
+      /(?:category|type|group)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(.+)/i,
+    );
     if (categoryMatch) {
       result.category = categoryMatch[1].trim().replace(/['"]/g, '');
     }
 
-    const dateMatch = text.match(/(?:date|for|on)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\w+\s+\d{4})/i);
+    const dateMatch = text.match(
+      /(?:date|for|on)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\w+\s+\d{4})/i,
+    );
     if (dateMatch) {
       result.date = dateMatch[1];
     }
 
-    const descMatch = text.match(/(?:description|desc|note|memo)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(.+)/i);
+    const descMatch = text.match(
+      /(?:description|desc|note|memo)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(.+)/i,
+    );
     if (descMatch) {
       result.description = descMatch[1].trim().replace(/['"]/g, '');
     }
 
-    const customerMatch = text.match(/(?:customer|client|for)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(.+)/i);
+    const customerMatch = text.match(
+      /(?:customer|client|for)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(.+)/i,
+    );
     if (customerMatch) {
       result.customer = customerMatch[1].trim().replace(/['"]/g, '');
     }
 
-    const paymentMatch = text.match(/(?:payment|method|paid\s*(?:via|by|with)?)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(cash|bank\s*transfer|card|mobile\s*payment|other)/i);
+    const paymentMatch = text.match(
+      /(?:payment|method|paid\s*(?:via|by|with)?)\s*(?:should\s*(?:be)?)?\s*(?:is)?\s*[:=]?\s*(cash|bank\s*transfer|card|mobile\s*payment|other)/i,
+    );
     if (paymentMatch) {
       result.paymentMethod = paymentMatch[1].toLowerCase().replace(/\s+/g, '_');
     }
@@ -392,6 +434,12 @@ export class WhatsAppMessageService {
     businessId: string,
     recipientPhone: string,
     text: string,
+    meta?: {
+      conversationId?: Types.ObjectId;
+      senderType?: 'customer' | 'human_agent' | 'ai';
+      originatedFromAi?: boolean;
+      humanEdited?: boolean;
+    },
   ): Promise<MessageEventDocument> {
     if (text.length > WHATSAPP_CONSTANTS.MAX_OUTBOUND_TEXT_LENGTH) {
       throw new Error(
@@ -399,7 +447,8 @@ export class WhatsAppMessageService {
       );
     }
 
-    const connection = await this.businessResolver.resolveByBusinessId(businessId);
+    const connection =
+      await this.businessResolver.resolveByBusinessId(businessId);
     if (!connection) {
       throw new Error('No active WhatsApp connection for this business');
     }
@@ -424,6 +473,10 @@ export class WhatsAppMessageService {
       processingStatus: MessageProcessingStatus.PROCESSED,
       deliveryStatus: undefined,
       sentAt: result.sentAt,
+      conversationId: meta?.conversationId,
+      senderType: meta?.senderType,
+      originatedFromAi: meta?.originatedFromAi ?? false,
+      humanEdited: meta?.humanEdited ?? false,
     });
 
     return messageEvent;
@@ -436,9 +489,11 @@ export class WhatsAppMessageService {
     replyToMessageId?: string,
   ): Promise<void> {
     try {
-      const truncatedText = text.length > WHATSAPP_CONSTANTS.MAX_OUTBOUND_TEXT_LENGTH
-        ? text.substring(0, WHATSAPP_CONSTANTS.MAX_OUTBOUND_TEXT_LENGTH - 3) + '...'
-        : text;
+      const truncatedText =
+        text.length > WHATSAPP_CONSTANTS.MAX_OUTBOUND_TEXT_LENGTH
+          ? text.substring(0, WHATSAPP_CONSTANTS.MAX_OUTBOUND_TEXT_LENGTH - 3) +
+            '...'
+          : text;
 
       const result = await this.providerService.sendTextMessage({
         phoneNumberId: connection.phoneNumberId,
@@ -491,7 +546,13 @@ function formatProposalForDisplay(parsedData: any): string {
   if (parsedData.date) {
     try {
       const d = new Date(parsedData.date + 'T00:00:00');
-      lines.push(d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }));
+      lines.push(
+        d.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }),
+      );
     } catch {
       lines.push(parsedData.date);
     }

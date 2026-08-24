@@ -6,16 +6,20 @@ import {
   MessageEvent,
   MessageEventDocument,
 } from '../schemas/message-event.schema';
-import {
-  MetaWebhookBody,
-} from '../interfaces/whatsapp-webhook.interface';
+import { MetaWebhookBody } from '../interfaces/whatsapp-webhook.interface';
 import {
   ParsedIncomingMessage,
   ParsedStatusUpdate,
 } from '../interfaces/whatsapp-message.interface';
-import { Reminder, ReminderDocument } from '../../reminders/schemas/reminder.schema';
+import {
+  Reminder,
+  ReminderDocument,
+} from '../../reminders/schemas/reminder.schema';
 import { ReminderStatus } from '../../reminders/enums/reminder-status.enum';
-import { FinancialSummary, FinancialSummaryDocument } from '../../summaries/schemas/financial-summary.schema';
+import {
+  FinancialSummary,
+  FinancialSummaryDocument,
+} from '../../summaries/schemas/financial-summary.schema';
 import { SummaryStatus } from '../../summaries/enums/summary-status.enum';
 import { MessageDirection } from '../../../common/enums/message-direction.enum';
 import { MessageType } from '../../../common/enums/message-type.enum';
@@ -25,8 +29,10 @@ import { WhatsAppProvider } from '../../../common/enums/whatsapp-provider.enum';
 import { MetaWhatsAppProviderService } from './whatsapp-provider.service';
 import { WhatsAppBusinessResolverService } from './whatsapp-business-resolver.service';
 import { WhatsAppMessageService } from './whatsapp-message.service';
+import { WhatsAppInboxService } from './whatsapp-inbox.service';
 
-export type WebhookEventType = 'incoming_message' | 'status_update' | 'unsupported';
+export type WebhookEventType =
+  'incoming_message' | 'status_update' | 'unsupported';
 
 @Injectable()
 export class WhatsAppWebhookService {
@@ -45,9 +51,12 @@ export class WhatsAppWebhookService {
     private readonly providerService: MetaWhatsAppProviderService,
     private readonly businessResolver: WhatsAppBusinessResolverService,
     private readonly messageService: WhatsAppMessageService,
+    private readonly inboxService: WhatsAppInboxService,
   ) {
-    this.verifyToken = this.configService.get<string>('WHATSAPP_VERIFY_TOKEN') || '';
-    this.appSecret = this.configService.get<string>('WHATSAPP_APP_SECRET') || '';
+    this.verifyToken =
+      this.configService.get<string>('WHATSAPP_VERIFY_TOKEN') || '';
+    this.appSecret =
+      this.configService.get<string>('WHATSAPP_APP_SECRET') || '';
   }
 
   verifyWebhook(mode: string, token: string, challenge: string): string | null {
@@ -61,7 +70,10 @@ export class WhatsAppWebhookService {
     return null;
   }
 
-  verifySignature(body: string | Buffer, signature: string | undefined): boolean {
+  verifySignature(
+    body: string | Buffer,
+    signature: string | undefined,
+  ): boolean {
     return this.providerService.verifyWebhookSignature({
       body,
       signature,
@@ -82,7 +94,14 @@ export class WhatsAppWebhookService {
 
         if (value.messages && value.messages.length > 0) {
           for (const message of value.messages) {
-            await this.processIncomingMessage(message, value.metadata);
+            const contactName = value.contacts?.find(
+              (contact) => contact.wa_id === message.from,
+            )?.profile?.name;
+            await this.processIncomingMessage(
+              message,
+              value.metadata,
+              contactName,
+            );
           }
         }
 
@@ -96,16 +115,21 @@ export class WhatsAppWebhookService {
   }
 
   private async processIncomingMessage(
-    message: NonNullable<MetaWebhookBody['entry'][0]['changes'][0]['value']['messages']>[0],
+    message: NonNullable<
+      MetaWebhookBody['entry'][0]['changes'][0]['value']['messages']
+    >[0],
     metadata: { display_phone_number: string; phone_number_id: string },
+    customerName?: string,
   ): Promise<void> {
     try {
       const phoneNumberId = metadata.phone_number_id;
-      const recipientPhone = metadata.display_phone_number;
 
-      const resolved = await this.businessResolver.resolveByPhoneNumberId(phoneNumberId);
+      const resolved =
+        await this.businessResolver.resolveByPhoneNumberId(phoneNumberId);
       if (!resolved) {
-        this.logger.warn(`No business resolved for phoneNumberId: ${phoneNumberId}`);
+        this.logger.warn(
+          `No business resolved for phoneNumberId: ${phoneNumberId}`,
+        );
         return;
       }
 
@@ -118,28 +142,23 @@ export class WhatsAppWebhookService {
       });
 
       if (existing) {
-        this.logger.log(`Duplicate webhook for message ${providerMessageId}, skipping`);
+        this.logger.log(
+          `Duplicate webhook for message ${providerMessageId}, skipping`,
+        );
         return;
       }
 
-      const parsed = this.parseIncomingMessage(message, metadata, phoneNumberId);
+      const parsed = this.parseIncomingMessage(
+        message,
+        metadata,
+        phoneNumberId,
+      );
       const sender = await this.businessResolver.findAuthorizedSender(
         business._id.toString(),
         parsed.senderPhone,
       );
 
-      if (!sender) {
-        this.logger.warn(
-          `Ignoring inbound WhatsApp message from unauthorized sender ${parsed.senderPhone} for business ${business._id.toString()}`,
-        );
-        await this.providerService.sendTextMessage({
-          phoneNumberId: connection.phoneNumberId,
-          recipientPhone: parsed.senderPhone,
-          text: 'This WhatsApp number is not connected to this business workspace.',
-        });
-        return;
-      }
-
+      // Store every incoming message exactly once, before any branching.
       const messageEvent = await this.messageEventModel.create({
         businessId: business._id,
         whatsappConnectionId: connection._id,
@@ -159,6 +178,22 @@ export class WhatsAppWebhookService {
         },
       });
 
+      if (!sender) {
+        // Customer conversation: surface it in the web inbox where a human
+        // reviews the AI-suggested reply before anything is sent.
+        this.logger.log(
+          `Recording inbound WhatsApp customer message ${parsed.providerMessageId} from ${parsed.senderPhone} for business ${business._id.toString()}`,
+        );
+        await this.inboxService.recordCustomerMessage(
+          messageEvent,
+          customerName,
+        );
+        await this.messageEventModel.findByIdAndUpdate(messageEvent._id, {
+          processingStatus: MessageProcessingStatus.PROCESSED,
+        });
+        return;
+      }
+
       await this.messageService.handleInboundMessage(
         messageEvent,
         connection,
@@ -174,7 +209,9 @@ export class WhatsAppWebhookService {
   }
 
   private async processStatusUpdate(
-    status: NonNullable<MetaWebhookBody['entry'][0]['changes'][0]['value']['statuses']>[0],
+    status: NonNullable<
+      MetaWebhookBody['entry'][0]['changes'][0]['value']['statuses']
+    >[0],
     metadata: { display_phone_number: string; phone_number_id: string },
   ): Promise<void> {
     try {
@@ -215,6 +252,11 @@ export class WhatsAppWebhookService {
       if (result) {
         this.logger.log(
           `Updated delivery status for ${parsed.providerMessageId}: ${parsed.status}`,
+        );
+        this.inboxService.notifyDeliveryStatus(
+          result.businessId.toString(),
+          parsed.providerMessageId,
+          parsed.status,
         );
       }
 
@@ -268,7 +310,9 @@ export class WhatsAppWebhookService {
   }
 
   private parseIncomingMessage(
-    message: NonNullable<MetaWebhookBody['entry'][0]['changes'][0]['value']['messages']>[0],
+    message: NonNullable<
+      MetaWebhookBody['entry'][0]['changes'][0]['value']['messages']
+    >[0],
     metadata: { display_phone_number: string; phone_number_id: string },
     phoneNumberId: string,
   ): ParsedIncomingMessage {
@@ -316,7 +360,9 @@ export class WhatsAppWebhookService {
   }
 
   private parseStatusUpdate(
-    status: NonNullable<MetaWebhookBody['entry'][0]['changes'][0]['value']['statuses']>[0],
+    status: NonNullable<
+      MetaWebhookBody['entry'][0]['changes'][0]['value']['statuses']
+    >[0],
     metadata: { display_phone_number: string; phone_number_id: string },
   ): ParsedStatusUpdate {
     const statusMap: Record<string, DeliveryStatus> = {

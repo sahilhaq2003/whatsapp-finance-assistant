@@ -13,6 +13,7 @@ const navGroups = [
       { href: '/dashboard/invoices', label: 'Invoices', active: '/dashboard/invoices', mark: 'I' },
       { href: '/dashboard/customers', label: 'Customers', active: '/dashboard/customers', mark: 'C' },
       { href: '/dashboard/assistant', label: 'Assistant', active: '/dashboard/assistant', mark: 'A' },
+      { href: '/dashboard/inbox', label: 'WhatsApp Inbox', active: '/dashboard/inbox', mark: 'W' },
     ],
   },
   {

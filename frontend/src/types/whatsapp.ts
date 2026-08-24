@@ -38,3 +38,47 @@ export interface SendTestMessageResponse {
   providerMessageId: string;
   sentAt: string;
 }
+
+export interface InboxConversation {
+  id: string;
+  customerPhone: string;
+  customerName?: string;
+  status: 'open' | 'closed';
+  unreadCount: number;
+  latestMessagePreview?: string;
+  latestMessageAt?: string;
+  lastCustomerMessageAt?: string;
+}
+
+export type InboxDraftStatus =
+  | 'generating'
+  | 'waiting_for_approval'
+  | 'approved'
+  | 'rejected'
+  | 'failed';
+
+export interface InboxAiDraft {
+  id: string;
+  conversationId?: string;
+  status: InboxDraftStatus;
+  originalText?: string;
+  generationError?: string;
+  humanEdited: boolean;
+  generatedAt?: string;
+}
+
+export type InboxDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed';
+
+export interface InboxMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  senderPhone: string;
+  senderType?: 'customer' | 'human_agent' | 'ai';
+  messageType: string;
+  text?: string;
+  deliveryStatus?: InboxDeliveryStatus;
+  providerMessageId?: string;
+  originatedFromAi: boolean;
+  humanEdited: boolean;
+  timestamp: string;
+}
