@@ -130,11 +130,29 @@ jobs:
           mv "$STAGING/standalone" "$FRONTEND/.next/standalone"
           rmdir "$STAGING"
           rm -f /home/dulanpro/frontend-standalone.tar.gz
+
+          # Fail before restart if the uploaded build does not contain the
+          # inbox route. This also makes stale-artifact failures explicit.
+          test -f "$FRONTEND/.next/standalone/.next/server/app/dashboard/inbox/page.js"
+
           mkdir -p "$FRONTEND/tmp"
           touch "$FRONTEND/tmp/restart.txt"
           /usr/sbin/cloudlinux-selector start --json --interpreter nodejs \
             --user dulanpro \
             --app-root repositories/whatsapp-finance-assistant/frontend
+
+          echo "Node.js application configuration:"
+          /usr/sbin/cloudlinux-selector get --json --interpreter nodejs \
+            --user dulanpro 2>&1 || true
+          echo "Frontend Node.js processes after restart:"
+          for process_dir in /proc/[0-9]*; do
+            process_pid="${process_dir##*/}"
+            process_cwd="$(readlink "$process_dir/cwd" 2>/dev/null || true)"
+            process_args="$(tr '\0' ' ' < "$process_dir/cmdline" 2>/dev/null || true)"
+            if [[ "$process_cwd" == "$FRONTEND"* || "$process_args" == *"$FRONTEND"* ]]; then
+              printf 'pid=%s cwd=%s args=%s\n' "$process_pid" "$process_cwd" "$process_args"
+            fi
+          done
           REMOTE
 
       - name: Verify production
